@@ -90,10 +90,21 @@ class SiteGeoDaoRedis(SiteGeoDaoBase, RedisDaoBase):
         """Find all Sites."""
         site_ids = self.redis.zrange(self.key_schema.site_geo_key(), 0, -1)
         sites = set()
-
+        # Below for loop is fine but Redis U has given us a bonus challenge to implement pipelining instead of the below
+        # for site_id in site_ids:
+        #     key = self.key_schema.site_hash_key(site_id)
+        #     site_hash = self.redis.hgetall(key)
+        #     sites.add(FlatSiteSchema().load(site_hash))
+        ### Start Week 3 Bonus Challenge
+        p = self.redis.pipeline(transaction=False)
         for site_id in site_ids:
-            key = self.key_schema.site_hash_key(site_id)
-            site_hash = self.redis.hgetall(key)
-            sites.add(FlatSiteSchema().load(site_hash))
+            p.hgetall(self.key_schema.site_hash_key(site_id))
+        
+        site_hashes = p.execute()
+
+        for site_hash in [h for h in site_hashes if h is not None]:
+            site_model = FlatSiteSchema().load(site_hash)
+            sites.add(site_model)
+        ### End Week 3 Bonus Challenge
 
         return sites
